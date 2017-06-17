@@ -81,6 +81,16 @@ def readData(f, year, month, dtype = 'csv'):
   return data
   #}}}
 
+def writeFile(fname, data):
+  #{{{
+  assert data is not None
+
+  ext = os.path.splitext(fname)[1].lower()
+  if '.csv' == ext: data.to_csv(fname, index = False)
+  elif '.xlsx' == ext: data.to_excel(fname, index = False)
+  else: pass
+  #}}}
+
 
 def normalizeData(data):
   #{{{
@@ -298,10 +308,12 @@ if '__main__' == __name__:
   import getopt, sys, os
   import logging as log
 
-  opts, args = getopt.getopt(sys.argv[1:], 'hm:y:o:v')
+  opts, args = getopt.getopt(sys.argv[1:], 'hm:y:o:vq')
   full_table = False
+  write_table = None
   verbose = False
   outfile = None
+  quiet = False
 
   # Initialisiere Monat und Jahr von aktuellem Datum
   today = datetime.datetime.today().date()
@@ -317,18 +329,26 @@ if '__main__' == __name__:
     elif '-v' == opt: verbose = True
     elif '-o' == opt: outfile = val
     elif '-f' == opt: full_table = True
+    elif '-q' == opt: quiet = True
     elif '-h' == opt:
       print '''Usage: %s [OPT] FILE
+
+The script can read/write following data based on the fileextension:
+  .csv  - Comma separated values
+  .xlsx - Excel sheet
 
 Available flags for OPT:
   -m NUM  Initialize default month with NUM.
   -y NUM  Initialize default year with NUM.
-  -o FILE Write reults into FILE.
+  -o FILE Write results into FILE.
   -v      Print verbose optimization summary.
+  -q      Suppress output
   -h      Print this message and terminate.
 ''' % os.path.basename(sys.argv[0])
       sys.exit(0)
   #}}}
+
+  verbose = verbose and not quiet
 
   if 1 != len(args):
     log.error('Invalid usage! See `%s -h\' for help.' % os.path.basename(sys.argv[0]))
@@ -366,12 +386,10 @@ Available flags for OPT:
   log.info('Rows that initially were `n.i.O.\' are marked with `x\'.')
   assert data['_new_i.O._'].sum() == len(data), 'There are some rows remaining `n.i.O.\'!'
 
-  if outfile is not None:
-    if full_table: columns = data.columns
-    else: columns = ['_wday_', 'tag', 'monat', 'jahr', '_new_from_', '_new_till_', 'flags']
-    log.info('Writing results into to file `%s\'...' % outfile)
-    data[columns].to_csv(outfile, index = False)
-  else:
+  if full_table: columns = data.columns
+  else: columns = ['_wday_', 'tag', 'monat', 'jahr', '_new_from_', '_new_till_', 'flags']
+
+  if not quiet:
     for index, x in data.iterrows():
       if not verbose: info = ''
       else: info = '(total: %s, break: %s, adjust: %s)' % (x['_new_total_'], x['_new_break_'], x['_adjust_'])
@@ -389,6 +407,13 @@ Available flags for OPT:
         x['_new_from_'], x['_new_till_'],
         info
         )
+
+  # if None is outfile:
+  #   base, ext = os.path.splitext(fname)
+  #   outfile = base + '_result' + ext
+
+  if None is not outfile: writeFile(outfile, data[columns])
+
   assert data['_total_'].sum() == data['_new_total_'].sum(), 'Invalid solution: Total sums do not match!'
   sys.exit(0)
   #}}}
